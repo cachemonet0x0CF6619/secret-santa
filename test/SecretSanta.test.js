@@ -5,49 +5,61 @@ describe('SecretSanta', function () {
   let santa, elfOne, elfTwo, gift;
   let nft;
   before(async () => {
-    const [_santa, _elfOne, _elfTwo, _gift] = await ethers.getSigners();
+    const [_santa, _elfOne, _elfTwo, _elfThree] = await ethers.getSigners();
     santa  = _santa;
     elfOne = _elfOne;
     elfTwo = _elfTwo;
-    gift = _gift;
+    elfThree = _elfThree;
 
-    const NFT = await ethers.getContractFactory('SecretSanta');
-    nft = await NFT.deploy();
+    // Mint ERC721Mock tokens to each player
+    const NFT = await ethers.getContractFactory('ERC721Mock');
+    nft = await NFT.deploy('721Mock', 'MOCK');
     await nft.deployed();
 
-    //try {
-    //  nft.connect(elfOne)
-    //    .mint(1, { value: ethers.utils.parseEther('0.04') });
-    //} catch(error) {
-    //  console.log(error.message);
-    //  expect(error.message).to.eq('fuck you')
-    //} 
+    try {
+      await nft.connect(santa).mint(elfOne.address, 1);
+      expect(await nft.exists(1)).to.eq(true);
 
-    //nft.connect(elfTwo)
-    //    .mint(1, { value: ethers.utils.parseEther('0.04') });
+      await nft.connect(santa).mint(elfTwo.address, 2);
+      expect(await nft.exists(2)).to.eq(true);
 
-    //const count = await nft.totalSupply();
-    expect(count).to.eq(2);
+      await nft.connect(santa).mint(elfThree.address, 3);
+      expect(await nft.exists(3)).to.eq(true);
+    } catch(error) {
+      console.log(error.message);
+      expect(error)
+    } 
+
     const Contract = await ethers.getContractFactory('SecretSanta');
     contract = await Contract.deploy();
     await contract.deployed();
   });
 
   it('should allow elf one to deposit a gift', async () => {
-   //  await contract.connect(elfOne).deposit(nft.address, 1);
-    const elfs = await contract.connect(santa).niceList();
-    expect(elfs.length).eq(1);
+    await nft.connect(elfOne).approve(contract.address, 1);
+    await contract.connect(elfOne).deposit(nft.address, 1);
+    const gave = await contract.connect(santa).gave(elfOne.address);
+    expect(gave).eq(true);
   });
 
-  it('should allow elf one to deposit a gift', async () => {
+  it('should allow elf two to deposit a gift', async () => {
+    await nft.connect(elfTwo).approve(contract.address, 2);
     await contract.connect(elfTwo).deposit(nft.address, 2);
-    const elfs = await contract.connect(santa).niceList();
-    expect(elfs.length).eq(2);
+    const gave = await contract.connect(santa).gave(elfTwo.address);
+    expect(gave).eq(true);
   });
 
+  it('should allow elf three to deposit a gift', async () => {
+    await nft.connect(elfThree).approve(contract.address, 3);
+    await contract.connect(elfThree).deposit(nft.address, 3);
+    const gave = await contract.connect(santa).gave(elfThree.address);
+    expect(gave).eq(true);
+  });
   it('should not allow an elf to deposit more than one gift', async () => {
     try {
-      await contract.connect(elfOne).deposit(gift.address, 1);
+      await nft.connect(elfOne).mint(elfOne.address, 4);
+      await nft.connect(elfOne).approve(contract.address, 4);
+      await contract.connect(elfOne).deposit(nft.address, 4);
     } catch (error) {
       expect(error.message).to.include("Too generous");
     }
@@ -64,12 +76,19 @@ describe('SecretSanta', function () {
     await contract.connect(elfOne).withdraw();
   });
 
-  it('should allow elf two to withdraw gift', async () => {
+  xit('should allow elf two to withdraw gift', async () => {
     await contract.connect(elfTwo).withdraw();
   });
 
 
   it('should not allow withdrawls before the holidy');
-  it('should prevent multiple withdrawls');
+  it('should prevent multiple withdrawls', async () => {
+    try {
+      await contract.connect(elfOne).withdraw();
+    } catch (error) {
+      expect(error.message).to.include('Grinch');
+    }
+
+  });
   it('should not return the elfs original gift');
 });

@@ -7,12 +7,13 @@ import "@openzeppelin/contracts/access/Ownable.sol";
 import "@openzeppelin/contracts/token/ERC721/IERC721Receiver.sol";
 
 contract SecretSanta is ERC721, Ownable, IERC721Receiver {
-    event Deposited(bool success, bytes data);
-
     using Address for address;
 
+    event Deposited(bool success, address addr, uint256 tokenId);
+
+    // @dev depositied gift metadata
     struct Gift {
-        address addr;
+        address head;
         address sender;
         uint256 tokenId;
     }
@@ -26,14 +27,34 @@ contract SecretSanta is ERC721, Ownable, IERC721Receiver {
         return this.onERC721Received.selector;
     }
 
-    uint256 giftCount = 0;
-    address[] _niceList;
+    uint256 supply = 0;
+    address[] givers;
     mapping(address => Gift) gifts;
-    mapping(address => bool) santas;
+    mapping(address => bool) senders;
 
     constructor() ERC721("SecretSanta", "SANTA") {}
 
-    // TODO: use VRF in next year's contract
+    function deposit(address addr, uint256 tokenId) public {
+        // TODO: don't allow deposits after cut off date
+        require(!senders[msg.sender], "Too generous");
+        senders[msg.sender] = true;
+        givers.push(msg.sender);
+
+        Gift memory gift;
+        gift.tokenId = tokenId;
+        gift.head = addr;
+        gift.sender = msg.sender;
+        gifts[msg.sender] = gift;
+        supply++;
+        delete gift;
+
+        // IERC721(addr).approve(address(this), tokenId);
+        IERC721(addr).safeTransferFrom(msg.sender, address(this), tokenId);
+        // can we mint a token for their participation?
+        // emit Deposited(true, addr, tokenId);
+    }
+
+    // TODO: use VRF
     function random(
         uint256 min,
         uint256 max,
@@ -44,49 +65,30 @@ contract SecretSanta is ERC721, Ownable, IERC721Receiver {
 
     function withdraw() public {
         // TODO: require day of holiday or greater
-        require(_niceList.length > 1, "Lonely elf");
-        require(santas[msg.sender], "Grinch");
+        require(supply > 1, "Lonely elf");
+        require(senders[msg.sender], "Grinch");
 
-        // exclude sender from list
-        address[] memory elfs;
-        for (uint256 i = 0; i < giftCount; i++) {
-            // exclude sender from bag
-            if (_niceList[i] == msg.sender) continue;
-            elfs[i] = _niceList[i];
+        address addr = msg.sender;
+        while (addr == msg.sender) {
+            addr = givers[random(0, givers.length, block.timestamp)];
         }
-        require(_niceList.length - 1 == elfs.length, "Math is hard");
 
-        // TODO: better random
-        uint256 num = random(0, elfs.length, block.timestamp);
-        address addr = elfs[num];
         Gift memory gift = gifts[addr];
 
-        IERC721(gift.addr).safeTransferFrom(
+        // restrict eligibility and reduce supply
+        senders[msg.sender] = false;
+        supply--;
+
+        IERC721(gift.head).safeTransferFrom(
             address(this),
             msg.sender,
             gift.tokenId
         );
+        delete gift;
     }
 
-    function deposit(address addr, uint256 tokenId) public {
-        // TODO: don't allow deposits after cut off date
-        require(!santas[msg.sender], "Too generous");
-        santas[msg.sender] = true;
-        _niceList.push(msg.sender);
-
-        Gift memory gift;
-        gift.tokenId = tokenId;
-        gift.addr = addr;
-        gift.sender = msg.sender;
-        gifts[msg.sender] = gift;
-        giftCount++;
-
-        IERC721(gift.addr).safeTransferFrom(msg.sender, address(this), tokenId);
-        // can we mint a token for their participation?
-    }
-
-    function niceList() public view returns (address[] memory) {
-        return _niceList;
+    function gave(address a) public view returns (bool) {
+        return senders[a];
     }
 
     // TODO: allow players to re-claim their deposit

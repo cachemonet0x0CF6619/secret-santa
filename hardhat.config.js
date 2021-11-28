@@ -10,8 +10,15 @@ require('solidity-coverage');
 module.exports = {
   // defaultNetwork: "hardhat",
   defaultNetwork: 'hardhat',
+  etherscan: {
+    apiKey: process.env.ETHERSCAN_API_KEY,
+  },
   networks: {
     hardhat: { chainId: 1337 },
+    rinkeby: {
+      url: `https://rinkeby.infura.io/v3/${process.env.PROJECT_ID}`,
+      accounts: [`0x${process.env.PK}`],
+    },
   },
   solidity: {
     version: '0.8.10',

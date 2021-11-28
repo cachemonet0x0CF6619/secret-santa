@@ -48,7 +48,6 @@ contract SecretSanta is ERC721, Ownable, IERC721Receiver {
         supply++;
         delete gift;
 
-        // IERC721(addr).approve(address(this), tokenId);
         IERC721(addr).safeTransferFrom(msg.sender, address(this), tokenId);
         // can we mint a token for their participation?
         // emit Deposited(true, addr, tokenId);
